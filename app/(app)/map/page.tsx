@@ -1,6 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
 import { ClubLegend } from '@/components/map/ClubLegend'
+import { RunTracker } from '@/components/map/RunTracker'
 import { useTerritory } from '@/hooks/useTerritory'
 
 const TerritoryMap = dynamic(
@@ -20,6 +21,7 @@ export default function MapPage() {
       )}
       <TerritoryMap cells={cells} center={[29.06, 40.19]} zoom={13} />
       <ClubLegend cells={cells} />
+      <RunTracker />
     </div>
   )
 }
