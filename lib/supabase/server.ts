@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+// Next.js 15: cookies() is async — always `await createClient()` in RSC/Route Handlers
 export async function createClient() {
   const cookieStore = await cookies()
   return createServerClient(
