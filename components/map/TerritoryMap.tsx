@@ -18,14 +18,12 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
     let map: any
 
     async function initMap() {
-      const mapboxgl = (await import('mapbox-gl')).default
-      await import('mapbox-gl/dist/mapbox-gl.css')
+      const maplibregl = (await import('maplibre-gl')).default
+      await import('maplibre-gl/dist/maplibre-gl.css')
 
-      mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
-
-      map = new mapboxgl.Map({
+      map = new maplibregl.Map({
         container: containerRef.current!,
-        style: 'mapbox://styles/mapbox/dark-v11',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         center,
         zoom
       })
@@ -45,7 +43,7 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
           paint: { 'line-color': ['get', 'color'], 'line-width': 0.8, 'line-opacity': 0.7 }
         })
 
-        const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false })
+        const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false })
 
         map.on('mouseenter', 'territories-fill', (e: any) => {
           map.getCanvas().style.cursor = 'pointer'
