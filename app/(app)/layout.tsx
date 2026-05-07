@@ -1,14 +1,30 @@
-import Link from 'next/link'
+import { NavBar } from '@/components/layout/NavBar'
+import { createClient } from '@/lib/supabase/server'
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const name: string = user?.user_metadata?.full_name ?? user?.email ?? ''
+  const initials = name
+    .split(/[\s@]/)
+    .filter(Boolean)
+    .map((n) => n[0].toUpperCase())
+    .join('')
+    .slice(0, 2) || 'U'
+
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('avatar_color, avatar_emoji').eq('id', user.id).single()
+    : { data: null }
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <nav className="flex gap-6 p-4 border-b border-gray-800 bg-gray-900">
-        <Link href="/map" className="font-semibold hover:text-blue-400 transition-colors">Harita</Link>
-        <Link href="/clubs" className="font-semibold hover:text-blue-400 transition-colors">Kulüpler</Link>
-        <Link href="/leaderboard" className="font-semibold hover:text-blue-400 transition-colors">Sıralama</Link>
-      </nav>
-      <main>{children}</main>
+    <div className="min-h-screen bg-[#050A14] text-white">
+      <NavBar
+        initials={initials}
+        avatarColor={profile?.avatar_color ?? '#22C55E'}
+        avatarEmoji={profile?.avatar_emoji ?? null}
+      />
+      <main className="pb-16 md:pb-0">{children}</main>
     </div>
   )
 }

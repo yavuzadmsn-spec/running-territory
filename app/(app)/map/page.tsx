@@ -13,7 +13,7 @@ export default function MapPage() {
   const { cells, loading } = useTerritory()
 
   return (
-    <div className="relative w-full h-[calc(100vh-57px)] bg-gray-950">
+    <div className="relative w-full h-[calc(100dvh-64px)] md:h-[calc(100vh-56px)] bg-[#080808]">
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center z-20">
           <p className="text-gray-400">Harita yükleniyor...</p>

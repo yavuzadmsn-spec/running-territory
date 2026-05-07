@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useRef, useState } from 'react'
 import { latLngToCell } from 'h3-js'
+import { createClient } from '@/lib/supabase/client'
 
 const H3_RESOLUTION = 9
 const GPS_INTERVAL_MS = 5000
@@ -12,7 +13,7 @@ export interface RunStats {
   durationS: number
 }
 
-export function useLiveRun(clubId: string | null) {
+export function useLiveRun(clubId: string | null, presenceMeta?: { userId: string; clubColor: string; avatar: string; avatarColor: string }) {
   const [running, setRunning] = useState(false)
   const [stats, setStats] = useState<RunStats>({ cellsClaimed: 0, cellsConquered: 0, distanceM: 0, durationS: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +24,7 @@ export function useLiveRun(clubId: string | null) {
   const startTimeRef = useRef<number>(0)
   const lastPosRef = useRef<GeolocationCoordinates | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
 
   const processCell = useCallback(async (cellId: string) => {
     if (!activityIdRef.current || !clubId) return
@@ -33,11 +35,7 @@ export function useLiveRun(clubId: string | null) {
       const res = await fetch('/api/run/cell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          activity_id: activityIdRef.current,
-          club_id: clubId,
-          cell_id: cellId
-        })
+        body: JSON.stringify({ activity_id: activityIdRef.current, club_id: clubId, cell_id: cellId })
       })
       const result = await res.json()
       setStats(prev => ({
@@ -45,32 +43,37 @@ export function useLiveRun(clubId: string | null) {
         cellsClaimed: prev.cellsClaimed + (result.claimed ?? 0),
         cellsConquered: prev.cellsConquered + (result.conquered ?? 0)
       }))
-    } catch {
-      // GPS koşusu sırasında hata sessizce geç
-    }
+    } catch { /* sessizce geç */ }
   }, [clubId])
 
   const handlePosition = useCallback((pos: GeolocationPosition) => {
     const { latitude, longitude, accuracy } = pos.coords
-    if (accuracy > 50) return // 50m'den kötü sinyal kabul etme
+    if (accuracy > 50) return
 
     const cellId = latLngToCell(latitude, longitude, H3_RESOLUTION)
     processCell(cellId)
 
-    // Mesafe hesapla
     if (lastPosRef.current) {
-      const d = haversineM(
-        lastPosRef.current.latitude, lastPosRef.current.longitude,
-        latitude, longitude
-      )
+      const d = haversineM(lastPosRef.current.latitude, lastPosRef.current.longitude, latitude, longitude)
       setStats(prev => ({ ...prev, distanceM: prev.distanceM + d }))
     }
     lastPosRef.current = pos.coords
-  }, [processCell])
+
+    // Konumu diğer oyunculara yayınla
+    if (channelRef.current && presenceMeta) {
+      channelRef.current.track({
+        userId: presenceMeta.userId,
+        lat: latitude,
+        lng: longitude,
+        clubColor: presenceMeta.clubColor,
+        avatar: presenceMeta.avatar,
+        avatarColor: presenceMeta.avatarColor,
+      }).catch(() => {})
+    }
+  }, [processCell, presenceMeta])
 
   const start = useCallback(async () => {
     if (!clubId) { setError('Önce bir kulübe katıl'); return }
-
     setError(null)
     try {
       const res = await fetch('/api/run/start', {
@@ -88,12 +91,16 @@ export function useLiveRun(clubId: string | null) {
       setStats({ cellsClaimed: 0, cellsConquered: 0, distanceM: 0, durationS: 0 })
       setRunning(true)
 
-      // Süre sayacı
+      // Realtime presence kanalına bağlan
+      const supabase = createClient()
+      const channel = supabase.channel('active_runners')
+      await channel.subscribe()
+      channelRef.current = channel
+
       timerRef.current = setInterval(() => {
         setStats(prev => ({ ...prev, durationS: Math.floor((Date.now() - startTimeRef.current) / 1000) }))
       }, 1000)
 
-      // GPS takibi başlat
       watchIdRef.current = navigator.geolocation.watchPosition(
         handlePosition,
         (err) => setError(`GPS hatası: ${err.message}`),
@@ -112,6 +119,12 @@ export function useLiveRun(clubId: string | null) {
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
+    }
+    // Presence'dan çık
+    if (channelRef.current) {
+      channelRef.current.untrack().catch(() => {})
+      createClient().removeChannel(channelRef.current)
+      channelRef.current = null
     }
     setRunning(false)
   }, [])
