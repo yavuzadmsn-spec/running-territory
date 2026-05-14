@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { username, bio, avatar_color, avatar_emoji, avatar_url, full_name } = await req.json()
+  const { username, bio, avatar_color, avatar_emoji, avatar_url, full_name, gender } = await req.json()
 
   const [profileResult, metaResult] = await Promise.all([
     supabase.from('profiles').upsert({
@@ -57,6 +57,7 @@ export async function PUT(req: NextRequest) {
       avatar_color: avatar_color ?? '#22C55E',
       avatar_emoji: avatar_emoji ?? null,
       ...(avatar_url !== undefined ? { avatar_url } : {}),
+      ...(gender !== undefined ? { gender } : {}),
       updated_at: new Date().toISOString(),
     }),
     full_name !== undefined

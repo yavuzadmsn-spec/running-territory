@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [username,  setUsername]  = useState('')
   const [bio,       setBio]       = useState('')
   const [color,     setColor]     = useState('#22C55E')
+  const [gender,    setGender]    = useState<'male' | 'female' | ''>('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [stats,     setStats]     = useState<Stats>({ runs: 0, clubs: 0, cells: 0 })
   const [saving,    setSaving]    = useState(false)
@@ -35,6 +36,7 @@ export default function ProfilePage() {
         setBio(d.profile.bio ?? '')
         setColor(d.profile.avatar_color ?? '#22C55E')
         setAvatarUrl(d.profile.avatar_url ?? null)
+        setGender((d.profile.gender as 'male'|'female') ?? '')
       }
       if (d.user)  { setEmail(d.user.email ?? ''); setFullName(d.user.full_name ?? '') }
       if (d.stats) setStats(d.stats)
@@ -61,7 +63,7 @@ export default function ProfilePage() {
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setSaveMsg('')
     const res = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, bio, avatar_color: color, full_name: fullName }) })
+      body: JSON.stringify({ username, bio, avatar_color: color, full_name: fullName, gender: gender || null }) })
     setSaving(false); setSaveMsg(res.ok ? 'ok' : 'err')
     setTimeout(() => setSaveMsg(''), 3000)
   }
@@ -219,6 +221,40 @@ export default function ProfilePage() {
               >
                 {bio.length}/160
               </span>
+            </div>
+
+            {/* Gender */}
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] mb-3" style={{ color: 'rgba(255,255,255,0.30)' }}>
+                Cinsiyet
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: 'male',   l: 'Erkek',  e: '♂' },
+                  { v: 'female', l: 'Kadın', e: '♀' },
+                  { v: '',       l: 'Belirtme', e: '∅' },
+                ] as const).map((opt) => {
+                  const sel = gender === opt.v
+                  return (
+                    <button
+                      key={opt.l}
+                      type="button"
+                      onClick={() => setGender(opt.v)}
+                      className="py-2.5 rounded-[12px] font-display font-bold text-[12px] transition-all tap"
+                      style={{
+                        background: sel
+                          ? `linear-gradient(180deg, ${color}22, ${color}0C)`
+                          : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${sel ? color + '55' : 'rgba(255,255,255,0.07)'}`,
+                        color: sel ? color : 'rgba(255,255,255,0.55)',
+                        boxShadow: sel ? `0 0 0 1px ${color}15 inset, 0 0 16px -6px ${color}55` : 'none',
+                      }}
+                    >
+                      <span className="mr-1">{opt.e}</span>{opt.l}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Color picker */}

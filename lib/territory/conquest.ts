@@ -10,10 +10,18 @@ export interface ConquestResult {
 export async function processActivityCells(
   activityId: string,
   clubId: string,
-  cellIds: string[]
+  cellIds: string[],
+  userId?: string,
 ): Promise<ConquestResult> {
   const supabase = await createClient()
   const result: ConquestResult = { claimed: 0, conquered: 0, reinforced: 0, weakened: 0 }
+
+  // Derive user_id from activity if not provided
+  let resolvedUserId = userId
+  if (!resolvedUserId) {
+    const { data: act } = await supabase.from('activities').select('user_id').eq('id', activityId).maybeSingle()
+    resolvedUserId = act?.user_id ?? undefined
+  }
 
   for (const cellId of cellIds) {
     const { data: cell } = await supabase
@@ -24,7 +32,7 @@ export async function processActivityCells(
 
     if (!cell) {
       await supabase.from('territory_cells').insert({
-        cell_id: cellId, club_id: clubId, defense_score: 1,
+        cell_id: cellId, club_id: clubId, user_id: resolvedUserId, defense_score: 1,
         last_conquered_at: new Date().toISOString()
       })
       await recordConquest(supabase, cellId, null, clubId, activityId)
@@ -34,7 +42,7 @@ export async function processActivityCells(
 
     if (cell.club_id === clubId) {
       await supabase.from('territory_cells')
-        .update({ defense_score: Math.min(cell.defense_score + 1, 5) })
+        .update({ defense_score: Math.min(cell.defense_score + 1, 5), user_id: resolvedUserId })
         .eq('cell_id', cellId)
       result.reinforced++
       continue
@@ -42,7 +50,7 @@ export async function processActivityCells(
 
     if (cell.defense_score <= 1) {
       await supabase.from('territory_cells')
-        .update({ club_id: clubId, defense_score: 1, last_conquered_at: new Date().toISOString() })
+        .update({ club_id: clubId, user_id: resolvedUserId, defense_score: 1, last_conquered_at: new Date().toISOString() })
         .eq('cell_id', cellId)
       await recordConquest(supabase, cellId, cell.club_id, clubId, activityId)
       result.conquered++
