@@ -88,14 +88,24 @@ export default function ProfilePage() {
     <div style={{ background: '#080808', minHeight: '100vh' }}>
 
       {/* ── HERO ─────────────────────────────────────────── */}
-      <div className="relative overflow-hidden" style={{ background: '#0D0D0D', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        {/* Ambient glow */}
+      <div className="relative overflow-hidden" style={{ background: '#0B0B0B', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {/* Ambient glow layers */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse 50% 120% at 15% 60%, ${color}14, transparent 60%)` }}
+          style={{
+            background: `radial-gradient(ellipse 60% 120% at 20% 30%, ${color}1F, transparent 60%), radial-gradient(ellipse 50% 80% at 80% 90%, ${color}10, transparent 70%)`,
+          }}
+        />
+        {/* Top noise overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.03]"
+          style={{
+            backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+            backgroundSize: '3px 3px',
+          }}
         />
 
-        <div className="relative max-w-lg mx-auto px-5 py-8 flex items-center gap-5">
+        <div className="relative max-w-lg mx-auto px-5 pt-9 pb-6 flex items-center gap-5">
 
           {/* Avatar — click to upload */}
           <div className="relative group flex-shrink-0 cursor-pointer" onClick={() => fileRef.current?.click()}>

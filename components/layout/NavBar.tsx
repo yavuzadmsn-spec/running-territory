@@ -103,13 +103,22 @@ export function NavBar({
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
+        {/* Top fade so content scroll smoothly disappears under bar */}
         <div
+          className="absolute -top-6 left-0 right-0 h-6 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(8,8,8,0.85), transparent)' }}
+        />
+
+        <div
+          className="relative px-2"
           style={{
-            background: 'rgba(8,8,8,0.97)',
-            backdropFilter: 'blur(20px)',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(10,10,10,0.92)',
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
             height: 64,
             display: 'flex',
+            alignItems: 'center',
           }}
         >
           {[...NAV_ITEMS, {
@@ -120,6 +129,7 @@ export function NavBar({
                 className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[9px] font-bold"
                 style={{
                   background: `linear-gradient(135deg, ${avatarColor}cc, ${avatarColor})`,
+                  boxShadow: `0 0 0 1.5px rgba(255,255,255,0.10), 0 2px 8px ${avatarColor}40`,
                 }}
               >
                 {avatarContent}
@@ -131,31 +141,40 @@ export function NavBar({
               <Link
                 key={href}
                 href={href}
-                className="relative flex-1 flex flex-col items-center justify-center gap-[5px]"
+                className="relative flex-1 h-full flex flex-col items-center justify-center gap-1 tap"
               >
-                {/* Active top indicator */}
-                {isActive && (
-                  <span
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-b-full"
-                    style={{ background: '#22C55E', boxShadow: '0 2px 8px #22C55E80' }}
-                  />
-                )}
-                {/* Icon wrapper */}
+                {/* Active pill background */}
                 <div
-                  className="w-10 h-8 flex items-center justify-center rounded-xl transition-all"
+                  className="absolute inset-x-3 inset-y-2 rounded-2xl transition-all duration-300"
                   style={{
-                    background: isActive ? 'rgba(34,197,94,0.12)' : 'transparent',
+                    background: isActive ? 'rgba(34,197,94,0.10)' : 'transparent',
+                    boxShadow: isActive
+                      ? 'inset 0 0 0 1px rgba(34,197,94,0.18), 0 0 28px -10px rgba(34,197,94,0.55)'
+                      : 'none',
+                    transform: isActive ? 'scale(1)' : 'scale(0.92)',
+                    opacity: isActive ? 1 : 0,
                   }}
-                >
+                />
+
+                {/* Icon */}
+                <div className="relative flex items-center justify-center">
                   <Icon
-                    width={20}
-                    height={20}
-                    style={{ color: isActive ? '#22C55E' : 'rgba(255,255,255,0.32)' }}
+                    width={22}
+                    height={22}
+                    style={{
+                      color: isActive ? '#22C55E' : 'rgba(255,255,255,0.42)',
+                      filter: isActive ? 'drop-shadow(0 0 6px rgba(34,197,94,0.6))' : 'none',
+                      transition: 'all 0.2s',
+                    }}
                   />
                 </div>
+
                 <span
-                  className="font-mono text-[9px] tracking-[0.06em] uppercase leading-none"
-                  style={{ color: isActive ? '#22C55E' : 'rgba(255,255,255,0.30)' }}
+                  className="relative font-display text-[10px] tracking-[0.04em] leading-none transition-colors"
+                  style={{
+                    color: isActive ? '#22C55E' : 'rgba(255,255,255,0.42)',
+                    fontWeight: isActive ? 700 : 500,
+                  }}
                 >
                   {label}
                 </span>

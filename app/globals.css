@@ -52,6 +52,38 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 20px;
 }
 
+/* Premium card: linear gradient surface + inner top highlight */
+.card-premium {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04), transparent 30%),
+    linear-gradient(180deg, #161616, #101010);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 24px 60px -30px rgba(0,0,0,0.6),
+    0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* Hero accent card with green ambient */
+.card-hero {
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 100% at 50% 0%, rgba(34,197,94,0.12), transparent 60%),
+    linear-gradient(180deg, #161616, #0E0E0E);
+  border: 1px solid rgba(34,197,94,0.15);
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+/* Tab pill background for active mobile nav */
+.tab-pill {
+  background: rgba(34,197,94,0.14);
+  box-shadow:
+    0 0 0 1px rgba(34,197,94,0.20) inset,
+    0 0 24px -8px rgba(34,197,94,0.55);
+}
+
 /* Glass — map overlays */
 .glass-dark {
   background: rgba(8,8,8,0.88);
@@ -89,6 +121,26 @@ h1, h2, h3, h4, h5, h6 {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+@keyframes ringPulse {
+  0%, 100% { transform: scale(1);   opacity: 0.6; }
+  50%       { transform: scale(1.15); opacity: 0.15; }
+}
+
+/* Safe area helpers */
+.pt-safe { padding-top: max(env(safe-area-inset-top), 12px); }
+.pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 12px); }
+
+/* Tap interaction */
+.tap { -webkit-tap-highlight-color: transparent; transition: transform 0.15s ease-out; }
+.tap:active { transform: scale(0.97); }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
