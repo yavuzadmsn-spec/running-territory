@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 type Tab = 'clubs' | 'individuals'
-type Gender = 'male' | 'female'
+type Gender = 'male' | 'female' | 'all'
 type Scope  = 'city'  | 'country'
 
 interface ClubRow {
@@ -25,7 +25,7 @@ const MEDAL = [
 
 export function LeaderboardClient() {
   const [tab, setTab] = useState<Tab>('clubs')
-  const [gender, setGender] = useState<Gender>('male')
+  const [gender, setGender] = useState<Gender>('all')
   const [scope,  setScope]  = useState<Scope>('city')
   const [viewerCity, setViewerCity] = useState<string>('Bursa')
   const [clubs, setClubs] = useState<ClubRow[]>([])
@@ -115,6 +115,7 @@ export function LeaderboardClient() {
       ) : (
         <div className="flex gap-2 mb-6">
           {([
+            { v: 'all',    l: 'Genel',  e: '🏆' },
             { v: 'male',   l: 'Erkek',  e: '♂' },
             { v: 'female', l: 'Kadın', e: '♀' },
           ] as const).map(g => {
@@ -157,7 +158,11 @@ export function LeaderboardClient() {
         users.length === 0
           ? <EmptyState
               title="Henüz bireysel sıralama yok"
-              sub={gender === 'male' ? 'Erkek koşucu listesinde ilk yer açık' : 'Kadın koşucu listesinde ilk yer açık'}
+              sub={
+                gender === 'all'    ? 'İlk koşuyu başlat, listeye gir'
+                : gender === 'male' ? 'Erkek koşucu listesinde ilk yer açık'
+                                    : 'Kadın koşucu listesinde ilk yer açık'
+              }
             />
           : <IndividualLeaderboard rankings={users} />
       )}

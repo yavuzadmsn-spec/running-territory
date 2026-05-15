@@ -1,13 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-type Gender = 'male' | 'female'
+type Gender = 'male' | 'female' | 'all'
 type Scope  = 'city' | 'country'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const type   = (searchParams.get('type')   ?? 'clubs') as 'clubs' | 'individuals'
-  const gender = (searchParams.get('gender') ?? 'male')  as Gender
+  const gender = (searchParams.get('gender') ?? 'all')   as Gender
   const scope  = (searchParams.get('scope')  ?? 'city')  as Scope
   const city   = searchParams.get('city') ?? null
 
@@ -99,12 +99,13 @@ async function individualRankings(
 
   const userIds = Array.from(counts.keys())
 
-  const { data: profiles } = await supabase
+  let profileQuery = supabase
     .from('profiles')
     .select('id, username, avatar_color, avatar_url, gender, city')
     .in('id', userIds)
-    .eq('gender', gender)
+  if (gender !== 'all') profileQuery = profileQuery.eq('gender', gender)
 
+  const { data: profiles } = await profileQuery
   if (!profiles) return []
 
   return profiles
