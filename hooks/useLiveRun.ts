@@ -2,9 +2,14 @@
 import { useCallback, useRef, useState } from 'react'
 import { latLngToCell } from 'h3-js'
 import { createClient } from '@/lib/supabase/client'
+import { runRoute } from '@/lib/runRoute'
 
 const H3_RESOLUTION = 9
 const GPS_INTERVAL_MS = 5000
+// GPS drift / noise tuning
+const MAX_ACCURACY_M  = 25     // reject any fix worse than this
+const MIN_MOVE_M      = 3      // ignore movement deltas smaller than this (drift)
+const MIN_SPEED_MPS   = 0.5    // ignore frames where reported speed < this (≈1.8 km/h)
 
 export interface RunStats {
   cellsClaimed: number
@@ -47,17 +52,29 @@ export function useLiveRun(clubId: string | null, presenceMeta?: { userId: strin
   }, [clubId])
 
   const handlePosition = useCallback((pos: GeolocationPosition) => {
-    const { latitude, longitude, accuracy } = pos.coords
-    if (accuracy > 50) return
+    const { latitude, longitude, accuracy, speed } = pos.coords
+    // Reject low-quality fixes
+    if (accuracy > MAX_ACCURACY_M) return
 
-    const cellId = latLngToCell(latitude, longitude, H3_RESOLUTION)
-    processCell(cellId)
-
+    // Movement noise filter: ignore frames where movement is below GPS noise floor.
     if (lastPosRef.current) {
       const d = haversineM(lastPosRef.current.latitude, lastPosRef.current.longitude, latitude, longitude)
+      // Dynamic threshold: GPS drift is roughly proportional to accuracy.
+      const dynamicMin = Math.max(MIN_MOVE_M, accuracy * 0.5)
+      if (d < dynamicMin) return
+      // If device reports speed and it's below walking pace, treat as stationary.
+      if (typeof speed === 'number' && speed >= 0 && speed < MIN_SPEED_MPS) return
+
       setStats(prev => ({ ...prev, distanceM: prev.distanceM + d }))
     }
     lastPosRef.current = pos.coords
+
+    // Publish live coordinate to the run-route store for the map polyline.
+    runRoute.add(longitude, latitude)
+
+    // Bind cell ownership in DB
+    const cellId = latLngToCell(latitude, longitude, H3_RESOLUTION)
+    processCell(cellId)
 
     // Konumu diğer oyunculara yayınla
     if (channelRef.current && presenceMeta) {
@@ -90,6 +107,7 @@ export function useLiveRun(clubId: string | null, presenceMeta?: { userId: strin
       startTimeRef.current = Date.now()
       setStats({ cellsClaimed: 0, cellsConquered: 0, distanceM: 0, durationS: 0 })
       setRunning(true)
+      runRoute.start()
 
       // Realtime presence kanalına bağlan
       const supabase = createClient()
@@ -127,6 +145,7 @@ export function useLiveRun(clubId: string | null, presenceMeta?: { userId: strin
       channelRef.current = null
     }
     setRunning(false)
+    runRoute.stop()
   }, [])
 
   return { running, stats, error, start, stop }

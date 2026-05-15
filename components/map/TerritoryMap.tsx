@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CellDisplay } from '@/lib/h3/utils'
 import { useActivePlayers } from '@/hooks/useActivePlayers'
+import { runRoute } from '@/lib/runRoute'
 
 interface Props {
   cells: CellDisplay[]
@@ -14,8 +15,13 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
   const mapRef = useRef<any>(null)
   const markersRef = useRef<Map<string, any>>(new Map())
   const prevCellIdsRef = useRef<Set<string>>(new Set())
+  const userMarkerRef = useRef<any>(null)
+  const userPosRef    = useRef<[number, number] | null>(null)
+  const followRef     = useRef<boolean>(true)
+  const [follow, setFollow] = useState(true)
   const { players } = useActivePlayers()
 
+  /* ─── init map ─── */
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     let map: any
@@ -28,7 +34,13 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
         container: containerRef.current!,
         style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
         center, zoom,
+        // disable rotation; runners want forward-up feel via simple panning
+        pitchWithRotate: false,
+        dragRotate: false,
       })
+
+      // Disable follow if user pans manually
+      map.on('dragstart', () => { followRef.current = false; setFollow(false) })
 
       map.on('load', () => {
         // Main territory source
@@ -68,6 +80,21 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
           }
         })
 
+        // Run route line
+        map.addSource('run-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+        map.addLayer({
+          id: 'run-route-line',
+          type: 'line',
+          source: 'run-route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': '#22C55E',
+            'line-width': 4,
+            'line-opacity': 0.95,
+            'line-blur': 0.5,
+          }
+        })
+
         // Tooltip
         const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false })
         map.on('mouseenter', 'territories-fill', (e: any) => {
@@ -91,7 +118,7 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
     return () => { map?.remove(); mapRef.current = null }
   }, [])
 
-  // Update territory layer
+  /* ─── update territory layer ─── */
   useEffect(() => {
     const map = mapRef.current
     if (!map || typeof map.getSource !== 'function') return
@@ -99,30 +126,23 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
     async function updateLayer() {
       const { cellsToGeoJSON } = await import('@/lib/h3/utils')
 
-      // Detect newly added cells
       const currentIds = new Set(cells.map(c => c.cellId))
-      const newCells = cells.filter(c => !prevCellIdsRef.current.has(c.cellId))
+      const newCells   = cells.filter(c => !prevCellIdsRef.current.has(c.cellId))
       prevCellIdsRef.current = currentIds
 
       const src = map.getSource('territories')
       if (src) src.setData(cellsToGeoJSON(cells))
 
-      // Animate new cells
       if (newCells.length > 0) {
         const pulseSrc = map.getSource('territories-pulse')
         if (!pulseSrc) return
 
-        const { cellsToGeoJSON: ctg } = await import('@/lib/h3/utils')
-        const pulseData = ctg(newCells)
-
-        // Stamp opacity=1 on each feature
+        const pulseData = cellsToGeoJSON(newCells)
         pulseData.features = pulseData.features.map((f: any) => ({
-          ...f,
-          properties: { ...f.properties, opacity: 1 },
+          ...f, properties: { ...f.properties, opacity: 1 },
         }))
         pulseSrc.setData(pulseData)
 
-        // Animate opacity 1 → 0 over 1.8s
         const start = performance.now()
         const duration = 1800
         function animatePulse(now: number) {
@@ -147,7 +167,104 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
     else map.once?.('load', updateLayer)
   }, [cells])
 
-  // Live player markers
+  /* ─── subscribe to live run route ─── */
+  useEffect(() => {
+    let cancelled = false
+    const unsub = runRoute.subscribe(state => {
+      if (cancelled) return
+      const map = mapRef.current
+      if (!map) return
+      const src = map.getSource?.('run-route')
+      if (!src) return
+
+      const data = state.coords.length >= 2
+        ? {
+            type: 'FeatureCollection' as const,
+            features: [{
+              type: 'Feature' as const,
+              properties: {},
+              geometry: { type: 'LineString' as const, coordinates: state.coords },
+            }],
+          }
+        : { type: 'FeatureCollection' as const, features: [] }
+      src.setData(data)
+
+      // Auto-follow when running and last point known
+      if (state.active && followRef.current && state.coords.length > 0) {
+        const last = state.coords[state.coords.length - 1]
+        map.easeTo({ center: last, duration: 700 })
+      }
+    })
+    return () => { cancelled = true; unsub() }
+  }, [])
+
+  /* ─── geolocation watch: render self marker, auto follow ─── */
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    let cancelled = false
+    let maplibregl: any
+
+    ;(async () => {
+      maplibregl = (await import('maplibre-gl')).default
+    })()
+
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (cancelled) return
+        const { latitude, longitude } = pos.coords
+        userPosRef.current = [longitude, latitude]
+        const map = mapRef.current
+        if (!map) return
+
+        if (!userMarkerRef.current && maplibregl) {
+          const el = document.createElement('div')
+          el.style.cssText = `
+            position: relative;
+            width: 22px; height: 22px;
+            display: flex; align-items: center; justify-content: center;
+          `
+          el.innerHTML = `
+            <span style="position:absolute;inset:-12px;border-radius:50%;background:radial-gradient(circle,rgba(34,197,94,0.45),transparent 70%);animation:userPulse 2s ease-in-out infinite;"></span>
+            <span style="position:relative;width:14px;height:14px;border-radius:50%;background:#22C55E;border:2.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.4),0 0 14px rgba(34,197,94,0.8);"></span>
+          `
+          if (!document.getElementById('user-pulse-style')) {
+            const s = document.createElement('style')
+            s.id = 'user-pulse-style'
+            s.textContent = `
+              @keyframes userPulse {
+                0%   { transform: scale(0.6); opacity: 0.9; }
+                100% { transform: scale(1.8); opacity: 0; }
+              }
+            `
+            document.head.appendChild(s)
+          }
+          userMarkerRef.current = new maplibregl.Marker({ element: el })
+            .setLngLat([longitude, latitude])
+            .addTo(map)
+
+          // First fix — recenter
+          map.easeTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 15), duration: 800 })
+        } else if (userMarkerRef.current) {
+          userMarkerRef.current.setLngLat([longitude, latitude])
+        }
+
+        if (followRef.current) {
+          map.easeTo({ center: [longitude, latitude], duration: 500 })
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    )
+
+    return () => {
+      cancelled = true
+      navigator.geolocation.clearWatch(id)
+      userMarkerRef.current?.remove()
+      userMarkerRef.current = null
+    }
+  }, [])
+
+  /* ─── live player markers (other users) ─── */
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -164,35 +281,21 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
         } else {
           const el = document.createElement('div')
           el.style.cssText = `
-            width: 34px; height: 34px;
+            width: 32px; height: 32px;
             border-radius: 50%;
             background: linear-gradient(135deg, ${player.avatarColor}bb, ${player.avatarColor});
             border: 2px solid ${player.avatarColor};
             box-shadow: 0 0 14px ${player.avatarColor}88, 0 0 28px ${player.avatarColor}33;
             display: flex; align-items: center; justify-content: center;
-            font-size: 13px; font-weight: 800; color: white;
+            font-size: 12px; font-weight: 800; color: white;
             cursor: pointer;
             font-family: var(--font-display, sans-serif);
+            animation: markerPulse 2.5s ease-in-out infinite;
           `
           el.textContent = player.avatar
-
-          if (!document.getElementById('player-pulse-style')) {
-            const style = document.createElement('style')
-            style.id = 'player-pulse-style'
-            style.textContent = `
-              @keyframes markerPulse {
-                0%, 100% { transform: scale(1); }
-                50% { transform: scale(1.08); }
-              }
-            `
-            document.head.appendChild(style)
-          }
-          el.style.animation = 'markerPulse 2.5s ease-in-out infinite'
-
           const marker = new maplibregl.Marker({ element: el })
             .setLngLat([player.lng, player.lat])
             .addTo(map)
-
           markersRef.current.set(player.userId, marker)
         }
       })
@@ -207,5 +310,71 @@ export function TerritoryMap({ cells, center = [29.06, 40.19], zoom = 13 }: Prop
     else map.once?.('load', updateMarkers)
   }, [players])
 
-  return <div ref={containerRef} className="w-full h-full" />
+  /* ─── control handlers ─── */
+  const recenter = () => {
+    const map = mapRef.current
+    const pos = userPosRef.current
+    if (!map || !pos) return
+    followRef.current = true
+    setFollow(true)
+    map.easeTo({ center: pos, zoom: Math.max(map.getZoom(), 16), duration: 600 })
+  }
+  const zoomIn  = () => mapRef.current?.zoomIn()
+  const zoomOut = () => mapRef.current?.zoomOut()
+
+  return (
+    <>
+      <div ref={containerRef} className="w-full h-full" />
+
+      {/* Right-side controls */}
+      <div
+        className="absolute right-3 z-10 flex flex-col gap-2"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)' }}
+      >
+        <CtrlButton onClick={recenter} active={follow} label="Konum">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+        </CtrlButton>
+        <CtrlButton onClick={zoomIn} label="Yakınlaş">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </CtrlButton>
+        <CtrlButton onClick={zoomOut} label="Uzaklaş">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </CtrlButton>
+      </div>
+    </>
+  )
+}
+
+function CtrlButton({ children, onClick, active, label }: {
+  children: React.ReactNode; onClick: () => void; active?: boolean; label: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="w-11 h-11 rounded-2xl flex items-center justify-center tap"
+      style={{
+        background: active
+          ? 'linear-gradient(180deg, rgba(34,197,94,0.18), rgba(34,197,94,0.08))'
+          : 'rgba(8,8,8,0.85)',
+        backdropFilter: 'blur(20px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+        border: `1px solid ${active ? 'rgba(34,197,94,0.45)' : 'rgba(255,255,255,0.09)'}`,
+        color: active ? '#22C55E' : '#fff',
+        boxShadow: active
+          ? '0 1px 0 rgba(255,255,255,0.06) inset, 0 0 0 1px rgba(34,197,94,0.20), 0 6px 20px -6px rgba(34,197,94,0.5)'
+          : '0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 24px -8px rgba(0,0,0,0.6)',
+      }}
+    >
+      {children}
+    </button>
+  )
 }
