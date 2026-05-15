@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { TR_CITIES } from '@/lib/cities'
 
 const AVATAR_COLORS = [
   '#22C55E', '#3B82F6', '#EF4444', '#A855F7',
@@ -16,6 +17,7 @@ export default function ProfilePage() {
   const [bio,       setBio]       = useState('')
   const [color,     setColor]     = useState('#22C55E')
   const [gender,    setGender]    = useState<'male' | 'female' | ''>('')
+  const [city,      setCity]      = useState<string>('Bursa')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [stats,     setStats]     = useState<Stats>({ runs: 0, clubs: 0, cells: 0 })
   const [saving,    setSaving]    = useState(false)
@@ -37,6 +39,7 @@ export default function ProfilePage() {
         setColor(d.profile.avatar_color ?? '#22C55E')
         setAvatarUrl(d.profile.avatar_url ?? null)
         setGender((d.profile.gender as 'male'|'female') ?? '')
+        setCity(d.profile.city ?? 'Bursa')
       }
       if (d.user)  { setEmail(d.user.email ?? ''); setFullName(d.user.full_name ?? '') }
       if (d.stats) setStats(d.stats)
@@ -63,7 +66,7 @@ export default function ProfilePage() {
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault(); setSaving(true); setSaveMsg('')
     const res = await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, bio, avatar_color: color, full_name: fullName, gender: gender || null }) })
+      body: JSON.stringify({ username, bio, avatar_color: color, full_name: fullName, gender: gender || null, city }) })
     setSaving(false); setSaveMsg(res.ok ? 'ok' : 'err')
     setTimeout(() => setSaveMsg(''), 3000)
   }
@@ -221,6 +224,30 @@ export default function ProfilePage() {
               >
                 {bio.length}/160
               </span>
+            </div>
+
+            {/* City */}
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] mb-3" style={{ color: 'rgba(255,255,255,0.30)' }}>
+                Şehir
+              </div>
+              <select
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                className="w-full px-4 py-3 text-sm rounded-[12px] outline-none appearance-none cursor-pointer"
+                style={{
+                  background: '#1C1C1C',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#fff',
+                  fontFamily: 'inherit',
+                  backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 14px center',
+                  paddingRight: 38,
+                }}
+              >
+                {TR_CITIES.map(c => <option key={c} value={c} style={{ background: '#1C1C1C' }}>{c}</option>)}
+              </select>
             </div>
 
             {/* Gender */}

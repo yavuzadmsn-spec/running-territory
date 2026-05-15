@@ -15,12 +15,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { name, color } = await req.json()
+  const { name, color, city } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
   const { data: club, error } = await supabase
     .from('clubs')
-    .insert({ name: name.trim(), color: color ?? '#3B82F6' })
+    .insert({ name: name.trim(), color: color ?? '#3B82F6', city: city ?? 'Bursa' })
     .select()
     .single()
 

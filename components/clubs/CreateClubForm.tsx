@@ -1,12 +1,14 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { TR_CITIES } from '@/lib/cities'
 
 const COLORS = ['#22C55E', '#3B82F6', '#EF4444', '#A855F7', '#F59E0B', '#EC4899', '#06B6D4']
 
 export function CreateClubForm() {
   const [name,    setName]    = useState('')
   const [color,   setColor]   = useState(COLORS[0])
+  const [city,    setCity]    = useState<string>('Bursa')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const [open,    setOpen]    = useState(false)
@@ -15,11 +17,11 @@ export function CreateClubForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const res  = await fetch('/api/clubs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, color }) })
+    const res  = await fetch('/api/clubs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, color, city }) })
     const data = await res.json()
     if (!res.ok) { setError(data.error); setLoading(false); return }
     router.refresh()
-    setName(''); setColor(COLORS[0]); setLoading(false); setOpen(false)
+    setName(''); setColor(COLORS[0]); setCity('Bursa'); setLoading(false); setOpen(false)
   }
 
   if (!open) {
@@ -88,6 +90,31 @@ export function CreateClubForm() {
           onFocus={e => { e.currentTarget.style.borderColor = color + '80' }}
           onBlur={e  => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.09)' }}
         />
+
+        {/* City select */}
+        <div>
+          <div className="text-[10px] font-mono uppercase tracking-[0.22em] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            Şehir
+          </div>
+          <select
+            value={city}
+            onChange={e => setCity(e.target.value)}
+            required
+            className="w-full px-4 py-3.5 text-sm rounded-[14px] outline-none appearance-none cursor-pointer"
+            style={{
+              background: '#1C1C1C',
+              border: '1px solid rgba(255,255,255,0.09)',
+              color: '#fff',
+              fontFamily: 'inherit',
+              backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 16px center',
+              paddingRight: 40,
+            }}
+          >
+            {TR_CITIES.map(c => <option key={c} value={c} style={{ background: '#1C1C1C' }}>{c}</option>)}
+          </select>
+        </div>
 
         {/* Color picker */}
         <div>

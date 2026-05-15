@@ -3,15 +3,18 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 type Tab = 'clubs' | 'individuals'
-type Gender = 'all' | 'male' | 'female'
+type Gender = 'male' | 'female'
+type Scope  = 'city'  | 'country'
 
 interface ClubRow {
   id: string; name: string; color: string; cells: number; avgDefense: number
+  city: string | null
 }
 interface UserRow {
   id: string; name: string; color: string; cells: number
   avatarUrl: string | null
   gender: 'male' | 'female' | null
+  city: string | null
 }
 
 const MEDAL = [
@@ -22,21 +25,27 @@ const MEDAL = [
 
 export function LeaderboardClient() {
   const [tab, setTab] = useState<Tab>('clubs')
-  const [gender, setGender] = useState<Gender>('all')
+  const [gender, setGender] = useState<Gender>('male')
+  const [scope,  setScope]  = useState<Scope>('city')
+  const [viewerCity, setViewerCity] = useState<string>('Bursa')
   const [clubs, setClubs] = useState<ClubRow[]>([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/leaderboard?type=${tab}&gender=${gender}`, { cache: 'no-store' })
+    const params = tab === 'clubs'
+      ? `type=clubs&scope=${scope}`
+      : `type=individuals&gender=${gender}`
+    fetch(`/api/leaderboard?${params}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => {
-        if (tab === 'clubs')      setClubs(d.rankings ?? [])
-        else                       setUsers(d.rankings ?? [])
+        if (d.meta?.viewerCity) setViewerCity(d.meta.viewerCity)
+        if (tab === 'clubs') setClubs(d.rankings ?? [])
+        else                  setUsers(d.rankings ?? [])
       })
       .finally(() => setLoading(false))
-  }, [tab, gender])
+  }, [tab, gender, scope])
 
   return (
     <>
@@ -75,34 +84,62 @@ export function LeaderboardClient() {
         })}
       </div>
 
-      {/* Gender chips */}
-      <div className="flex gap-2 mb-6">
-        {([
-          { v: 'all',    l: 'Hepsi',  e: null },
-          { v: 'male',   l: 'Erkek',  e: '♂' },
-          { v: 'female', l: 'Kadın', e: '♀' },
-        ] as const).map(g => {
-          const active = gender === g.v
-          return (
-            <button
-              key={g.v}
-              onClick={() => setGender(g.v)}
-              className="flex-1 py-2 px-3 rounded-xl font-display font-bold text-[12px] tap transition-all"
-              style={{
-                background: active
-                  ? 'linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))'
-                  : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'}`,
-                color: active ? '#fff' : 'rgba(255,255,255,0.42)',
-                boxShadow: active ? '0 1px 0 rgba(255,255,255,0.04) inset' : 'none',
-              }}
-            >
-              {g.e && <span className="mr-1">{g.e}</span>}
-              {g.l}
-            </button>
-          )
-        })}
-      </div>
+      {/* Sub-filter row */}
+      {tab === 'clubs' ? (
+        <div className="flex gap-2 mb-6">
+          {([
+            { v: 'city',    l: viewerCity,   e: '📍' },
+            { v: 'country', l: 'Türkiye',    e: '🇹🇷' },
+          ] as const).map(s => {
+            const active = scope === s.v
+            return (
+              <button
+                key={s.v}
+                onClick={() => setScope(s.v)}
+                className="flex-1 py-2.5 px-3 rounded-xl font-display font-bold text-[12px] tap transition-all flex items-center justify-center gap-1.5"
+                style={{
+                  background: active
+                    ? 'linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))'
+                    : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'}`,
+                  color: active ? '#fff' : 'rgba(255,255,255,0.42)',
+                  boxShadow: active ? '0 1px 0 rgba(255,255,255,0.04) inset' : 'none',
+                }}
+              >
+                <span className="text-[13px]">{s.e}</span>
+                {s.l}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex gap-2 mb-6">
+          {([
+            { v: 'male',   l: 'Erkek',  e: '♂' },
+            { v: 'female', l: 'Kadın', e: '♀' },
+          ] as const).map(g => {
+            const active = gender === g.v
+            return (
+              <button
+                key={g.v}
+                onClick={() => setGender(g.v)}
+                className="flex-1 py-2.5 px-3 rounded-xl font-display font-bold text-[12px] tap transition-all flex items-center justify-center gap-1.5"
+                style={{
+                  background: active
+                    ? 'linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))'
+                    : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.05)'}`,
+                  color: active ? '#fff' : 'rgba(255,255,255,0.42)',
+                  boxShadow: active ? '0 1px 0 rgba(255,255,255,0.04) inset' : 'none',
+                }}
+              >
+                <span className="text-[14px]">{g.e}</span>
+                {g.l}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Body */}
       {loading && <SkeletonList />}
@@ -111,16 +148,16 @@ export function LeaderboardClient() {
         clubs.length === 0
           ? <EmptyState
               title="Henüz kulüp sıralaması yok"
-              sub={gender === 'all' ? "Bursa'yı ilk fetheden kulüp ol" : 'Bu filtrede henüz aktivite yok'}
+              sub={scope === 'city' ? `${viewerCity}'da ilk kulübü sen kur` : "Türkiye genelinde ilk kulüp ol"}
             />
-          : <ClubLeaderboard rankings={clubs} />
+          : <ClubLeaderboard rankings={clubs} showCity={scope === 'country'} />
       )}
 
       {!loading && tab === 'individuals' && (
         users.length === 0
           ? <EmptyState
               title="Henüz bireysel sıralama yok"
-              sub={gender === 'all' ? 'İlk koşuyu başlat, listeye gir' : 'Bu filtrede henüz aktivite yok'}
+              sub={gender === 'male' ? 'Erkek koşucu listesinde ilk yer açık' : 'Kadın koşucu listesinde ilk yer açık'}
             />
           : <IndividualLeaderboard rankings={users} />
       )}
@@ -130,7 +167,7 @@ export function LeaderboardClient() {
 
 /* ─── Sub-components ──────────────────────────────────────── */
 
-function ClubLeaderboard({ rankings }: { rankings: ClubRow[] }) {
+function ClubLeaderboard({ rankings, showCity }: { rankings: ClubRow[]; showCity: boolean }) {
   const maxCells = Math.max(...rankings.map(r => r.cells), 1)
   const top3 = rankings.slice(0, 3)
   const rest = rankings.slice(3)
@@ -148,7 +185,7 @@ function ClubLeaderboard({ rankings }: { rankings: ClubRow[] }) {
                 name={club.name}
                 stat={club.cells.toLocaleString()}
                 statLabel="HÜCRE"
-                meta={`DEF · ${club.avgDefense.toFixed(1)}`}
+                meta={showCity && club.city ? club.city : `DEF · ${club.avgDefense.toFixed(1)}`}
                 place={place + 1}
                 medal={MEDAL[place]}
                 elevated={place === 0}
@@ -157,15 +194,14 @@ function ClubLeaderboard({ rankings }: { rankings: ClubRow[] }) {
           })}
         </div>
       )}
-      {rest.length > 0 && (
-        <SectionDivider label="Diğer Kulüpler" />
-      )}
+      {rest.length > 0 && <SectionDivider label="Diğer Kulüpler" />}
       <div className="space-y-2">
         {rest.map((club, i) => (
           <TacticalRow
             key={club.id}
             color={club.color}
             name={club.name}
+            subtext={showCity ? club.city ?? null : null}
             cells={club.cells}
             max={maxCells}
             rank={i + 4}
@@ -213,6 +249,7 @@ function IndividualLeaderboard({ rankings }: { rankings: UserRow[] }) {
             key={u.id}
             color={u.color}
             name={u.name}
+            subtext={u.city ?? null}
             cells={u.cells}
             max={maxCells}
             rank={i + 4}
@@ -323,9 +360,10 @@ function PodiumCard({
 }
 
 function TacticalRow({
-  color, name, cells, max, rank, meta, metaLabel, avatarUrl,
+  color, name, subtext, cells, max, rank, meta, metaLabel, avatarUrl,
 }: {
-  color: string; name: string; cells: number; max: number; rank: number
+  color: string; name: string; subtext?: string | null
+  cells: number; max: number; rank: number
   meta?: string; metaLabel?: string; avatarUrl?: string | null
 }) {
   const pct = (cells / max) * 100
@@ -359,9 +397,16 @@ function TacticalRow({
       )}
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline justify-between mb-1.5">
-          <span className="font-display font-semibold text-[13px] text-white truncate">{name}</span>
-          <span className="font-mono font-bold text-xs tabular-nums ml-2 flex-shrink-0" style={{ color }}>
+        <div className="flex items-baseline justify-between mb-1.5 gap-2">
+          <div className="min-w-0 flex items-baseline gap-2">
+            <span className="font-display font-semibold text-[13px] text-white truncate">{name}</span>
+            {subtext && (
+              <span className="font-mono text-[10px] flex-shrink-0" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                · {subtext}
+              </span>
+            )}
+          </div>
+          <span className="font-mono font-bold text-xs tabular-nums flex-shrink-0" style={{ color }}>
             {cells.toLocaleString()}
           </span>
         </div>
